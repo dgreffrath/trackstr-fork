@@ -219,6 +219,24 @@ line shows the bridged model (e.g. `big-pickle (via Odysseus)`).
 - Solution: that is bot filtering on your client, not auth. Test through the
   daemon or with a normal browser session instead.
 
+**Making Zen usable from *any* OpenAI client (not just opencode)**
+- Symptom: the goal is to use a bridge so the app's own chat (Odysseus UI) can
+  call `http://127.0.0.1:7000/v1/chat/completions` with `big-pickle`.
+- Solution: those clients send neither the fingerprint headers nor stream/tools
+  body fields, so the bridge must satisfy the gate on their behalf:
+  1. Headers: if `User-Agent` does not start with `opencode/`, override all three
+     fingerprint headers (`User-Agent: opencode/<ver>`, `x-opencode-client: cli`,
+     `x-opencode-session: ses_...`). Keep real opencode headers when present.
+  2. Body: force `stream: true` and append `shell`/`read` function declarations to
+     `tools` (keep the caller's own tools).
+  3. Callers that asked for a non-streaming completion won't understand SSE, so
+     buffer the upstream stream and reassemble a plain `chat.completion` JSON
+     (concatenate `delta.content`, keep `finish_reason`/`usage`).
+- Then register the bridge as an OpenAI-compatible endpoint in the app
+  (e.g. Odysseus `model_endpoints` table: `base_url=http://127.0.0.1:7000/v1`,
+  no API key needed since the bridge holds it) and point the app's default chat
+  model at `big-pickle`.
+
 ## Agent prompt
 
 ```text
