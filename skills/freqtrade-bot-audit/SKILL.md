@@ -1,3 +1,8 @@
+---
+name: freqtrade-bot-audit
+description: "Deep-audit a live freqtrade deployment and produce an evidence-based, source-linked improvement plan. Use when the operator wants to know why a bot is (not) making money and what to change next — before changing pairs, stake, stoploss, ROI, or strategy, or before adopting any community strategy — without blind config guesswork."
+---
+
 # Skill: freqtrade-bot-audit
 
 Deep-audit a live freqtrade deployment and produce an evidence-based, source-linked
@@ -16,18 +21,29 @@ money and what to change next — without blind config guesswork.
 
 Inventory the bot directory:
 
-- `config.json` (the active one under `user_data/`) — copy sanitized values, never
-  secrets. Note: `stake_amount`, `max_open_trades`, `pairlists`, `pair_whitelist`,
+- The active config — derive its path from the unit's `ExecStart`
+  (`systemctl --user show <unit> -p ExecStart`); do **not** assume
+  `user_data/config.json`. A live deployment may run `config_ultimate.json` at the
+  bot root while `user_data/config.json` belongs to a failed legacy unit. Copy
+  sanitized values, never secrets. Note: `stake_amount`, `max_open_trades`, `pairlists`, `pair_whitelist`,
   `strategy`, `timeframe`, `minimal_roi`, `stoploss`, `trailing_*`, DCA settings,
   `order_types` (esp. `stoploss_on_exchange`), `cancel_open_orders_on_exit`,
   `unfilledtimeout`.
 - The active strategy in `user_data/strategies/` — read entry/exit conditions,
   `custom_stoploss`, `adjust_trade_position`, protections, `informative_pairs`.
 - Ops/guard scripts next to the bot dir (heal controllers, respawners, milestone
-  monitors, network watchdogs, backup). Note every place a credential appears.
+  monitors, network watchdogs, backup). Note every place a credential appears, and
+  check each script's expected env names against the real `.env` keys — a script
+  reading `BINANCE_API_KEY` while `.env` only has `FREQTRADE__EXCHANGE__API_KEY`
+  fails every run even though the bot itself trades fine. Verify the monitor's exit
+  status too: a stray heredoc leftover like `exit $EOF` makes it always exit 0 while
+  logging CRITICAL every cycle.
 - Git log/status for what changed and when.
 
-Then measure reality from the trade DB (`user_data/tradesv3*.sqlite`):
+Then measure reality from the trade DB — resolve the file from the active config's
+`db_url` (paths are relative to `WorkingDirectory`, so the live DB may be
+`<bot-root>/tradesv3.sqlite`; treat any other `user_data/tradesv3*.sqlite` as a
+possibly stale dry-run/futures/legacy copy):
 
 ```sql
 -- shape of the whole trial
@@ -48,7 +64,9 @@ failures, "Not enough X in wallet", emergency-exit loops, reconciliation desyncs
 live in logs, not in the strategy:
 
 ```bash
-journalctl --user -u freqtrade.service --since "<mm-dd HH:MM>" | grep -iE "emergency|stoploss|NOTIONAL|wallet|amount|ERROR"
+# discover the live unit first — a failed legacy freqtrade.service may coexist:
+systemctl --user list-units 'freqtrade*'
+journalctl --user -u <live-unit> --since "<mm-dd HH:MM>" | grep -iE "emergency|stoploss|NOTIONAL|wallet|amount|ERROR"
 ```
 
 ### 2. Classify the losses before touching the strategy
@@ -105,4 +123,10 @@ Ship one change → one backtest → confirm. On a tiny account the PnL error ba
 - Never paste keys/tokens/chat-ids into any shared artifact; note plainly where
   credentials live in the deployment and if any are plaintext.
 - Read before editing; never change the live bot without an explicit operator go.
+- Config **value** changes (`stake_amount`, stoploss, ROI) are not applied by
+  `POST /api/v1/reload_config` — it returns 200 but the old value stays active;
+  they take effect only after `systemctl --user restart <live-unit>`. Restart is
+  safe while exchange-side `stoploss_on_exchange` orders protect open positions
+  (verified in the field). Runtime levers that *do* work without restart:
+  blacklist add/remove + reload, `forceexit`.
 - Report findings as: inspection facts → root-cause ranking → source-linked plan.
