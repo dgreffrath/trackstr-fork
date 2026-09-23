@@ -219,6 +219,37 @@ line shows the bridged model (e.g. `big-pickle (via Odysseus)`).
 - Solution: that is bot filtering on your client, not auth. Test through the
   daemon or with a normal browser session instead.
 
+**Codex CLI will not talk to a chat-only bridge on current versions**
+- Symptom: `codex exec` against the bridge fails even though `/v1/chat/completions`
+  works from curl. New Codex builds regressed `wire_api = "chat"` around v0.84 and
+  **removed it outright (PR #10157, early Feb 2026; discussion #7782)** — config
+  with `wire_api = "chat"` is a hard startup error, and the remaining
+  `wire_api = "responses"` path depends on the bridge correctly remapping
+  Responses SSE, which third-party proxies frequently get subtly wrong
+  ("stream closed before response.completed").
+- Solution (keeps the working chat bridge, no Responses conversion): pin Codex to
+  **v0.66.0**, the last version where chat/completions worked reliably after a
+  batch of streaming/tool-ordering fixes (openai/codex#7051):
+
+```bash
+npm install --prefix ~/codex-chat @openai/codex@0.66.0
+```
+
+  Then in `~/.codex/config.toml` keep `/v1/chat/completions`
+  (`base_url = "http://127.0.0.1:7000/v1"`, `wire_api = "chat"`) and run that
+  binary explicitly (older CLI ignores unknown keys but may warn):
+
+```bash
+~/codex-chat/node_modules/.bin/codex exec --skip-git-repo-check "Reply with exactly: test"
+```
+
+  Verified (Sep 2026): the bridge still injects the opencode fingerprint headers
+  and `stream:true`+tools for the client, so the Zen free-tier gate passes, and
+  `POST /v1/chat/completions` → upstream `200 OK` in ~2–3s.
+- Note: v0.66.0 also tolerates the `/v1/models` JSON response that the newest
+  Codex fails to parse; do **not** attempt to satisfy modern Codex's models call
+  by NDJSON/SSE — it hard-fails on all of them.
+
 **Making Zen usable from *any* OpenAI client (not just opencode)**
 - Symptom: the goal is to use a bridge so the app's own chat (Odysseus UI) can
   call `http://127.0.0.1:7000/v1/chat/completions` with `big-pickle`.
