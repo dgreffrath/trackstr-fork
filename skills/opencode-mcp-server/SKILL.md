@@ -75,6 +75,33 @@ python3 -m json.tool ~/.config/opencode/opencode.json > /dev/null && echo OK
    cookie from an authenticated browser, an API key page), plus the restart
    step: quit opencode and reopen.
 
+## Worked example: chatgpt-webui-mcp
+
+A browser-automation MCP server that drives chatgpt.com on behalf of the agent.
+Quick explanation of what it does: it opens/steers a real Chrome or Edge window,
+logs in with your `__Secure-next-auth.session-token` cookie, submits prompts, and
+reads back ChatGPT's answers — so opencode gains ChatGPT tools with no API key,
+billed to your normal ChatGPT account.
+
+Download + install commands:
+```bash
+npm install -g chatgpt-webui-mcp
+npm install -g chatgpt-webui-mcp --allow-scripts=koffi   # koffi native binding needs its build scripts
+command -v chatgpt-webui-mcp                              # verify the bin resolved
+```
+
+Run:
+```bash
+CHATGPT_SESSION_TOKEN="<cookie>" chatgpt-webui-mcp
+```
+
+Best-fit Linux: a **full desktop distro — Ubuntu 22.04/24.04 LTS (desktop) or
+Debian 12** — plus **Google Chrome or Microsoft Edge installed**. camofox (its
+UI-automation layer) drives the real browser on a live display, so it needs a
+logged-in graphical session and a Chromium-family browser. Headless/server or
+minimal container bases will not work out of the box. Ubuntu LTS + Chrome is the
+safest default.
+
 ## Output format
 
 - The exact config diff (server name, command, env vars), the env vars the user
