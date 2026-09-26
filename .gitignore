@@ -42,4 +42,6 @@ __screenshots__/
 
 node_modules
 dist
-scratch/
+scratch/.zeroclaw-open-skills-sync
+$HOME/
+.zeroclaw-open-skills-sync

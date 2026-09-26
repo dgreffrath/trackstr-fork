@@ -1,145 +1,187 @@
-# Contributing to Trackstr 🎬✨
+# Contributing to open-skills
 
-Welcome! We are thrilled that you are interested in contributing to **Trackstr**.
+Thank you for your interest in contributing to open-skills! This document provides guidelines and instructions for adding new skills and improving existing ones.
 
-Trackstr is building the open-source media tracking and decentralized media database layer for the web — combining the tracking power of Letterboxd, Trakt, and Last.fm with an open, permissionless protocol on Nostr.
+## Quick Start
 
-Whether you want to fix a typo, design a feature, expand metadata sources, build scrobbler integrations, or experiment with AI vibe coding, **your contributions are welcomed and appreciated!**
+### Automated Contribution (Recommended for AI Agents)
 
----
+AI agents can automatically contribute skills using GitHub CLI:
 
-## 🌟 Why Contribute to Trackstr?
-
-- **Zero Backend Friction:** No Postgres, Redis, or microservices to set up. Trackstr is a 100% static client-side Vue 3 application that speaks directly to open Nostr relays and caches locally in IndexedDB.
-- **No API Keys or Paywalls Required:** Everything works out-of-the-box using public relays and open metadata providers (Wikipedia, TVMaze, MusicBrainz).
-- **Vibe Coding & Agent-Ready:** We love AI-assisted development! Our repository is pre-configured with [AGENTS.md](./AGENTS.md) so you can pair program seamlessly with Cursor, Claude Code, Antigravity, or Copilot.
-- **Lightning-Fast Test Feedback:** Over 170+ unit tests run in ~1 second via Vitest (`npm test` or `npm run test:podman`).
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Node.js `22+` (or [Podman](https://podman.io/) / [Docker](https://www.docker.com/))
-- Git
-
-### 1. Fork and Clone
 ```bash
-# Clone your fork
-git clone https://github.com/<your-username>/Trackstr.git
-cd Trackstr
+gh auth login  # one-time setup
+gh repo fork besoeasy/open-skills --clone=true
+cd open-skills && git checkout -b add-skill-name
+# Create skills/skill-name/SKILL.md following SKILL_TEMPLATE.md
+mkdir -p skills/skill-name
+git add skills/skill-name/SKILL.md && git commit -m "Add skill-name"
+git push origin add-skill-name
+gh pr create --title "Add skill-name" --repo besoeasy/open-skills
 ```
 
-### 2. Install & Start Development
+### Manual Contribution
 
-#### With Local Node:
-```bash
-npm install
-npm run dev
+1. Fork the repository
+2. Create a new branch: `git checkout -b add-skill-name`
+3. Add your skill file following the [SKILL_TEMPLATE.md](SKILL_TEMPLATE.md)
+4. Test all code examples
+5. Submit a Pull Request
+
+## Skill Requirements
+
+### What Makes a Good Skill
+
+- Uses free/open-source tools (no paid APIs unless absolutely necessary)
+- Includes working code examples in both **Node.js** and **Bash**
+- Respects privacy - no unnecessary data collection or tracking
+- Solves a common automation task
+- Production-ready with error handling and rate limiting
+- Follows the structure in [SKILL_TEMPLATE.md](SKILL_TEMPLATE.md)
+
+### File Naming
+
+- Use kebab-case folder names: `skill-name` (not `skillName` or `skill_name`)
+- Be descriptive: `check-crypto-address-balance` not `crypto`
+- Store each skill at `skills/skill-name/SKILL.md`
+- Match the `name` field in frontmatter to the folder name
+
+### Required Frontmatter
+
+Every skill file must start with:
+
+```yaml
+---
+name: skill-name-kebab-case
+description: One-line description of what this skill does.
+---
 ```
-Open `http://localhost:5173` in your browser.
 
-#### With Podman (No local Node/npm needed):
+### Code Standards
+
+#### Bash Examples
+
+- Use `-s` flag with curl for silent mode
+- Include error handling with `-f` (fail on HTTP errors)
+- Add timeouts: `--max-time 10`
+- Use `jq` for JSON parsing when appropriate
+- Test commands in a clean environment
+
 ```bash
-npm run dev:podman
+# Good
+curl -fsS --max-time 10 "https://api.example.com/data" | jq -r '.field'
+
+# Avoid
+curl "https://api.example.com/data"  # No error handling, no timeout
 ```
 
-### 3. Running the Test Suite
-```bash
-# With Node
-npm test
+#### Node.js Examples
 
-# With Podman
-npm run test:podman
+- Use native `fetch()` (available in Node 18+)
+- Include timeout handling with `AbortController`
+- Add proper error handling
+- Show both basic and advanced variations
+
+```javascript
+// Good
+async function getData(url, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
+}
+
+// Avoid
+async function getData(url) {
+  const res = await fetch(url);  // No timeout, no error handling
+  return await res.json();
+}
 ```
 
----
+### Documentation Standards
 
-## 🗺️ Where to Contribute
+1. **Clear descriptions**: Explain what the skill does in the first paragraph
+2. **When to use**: List specific use cases as bullet points
+3. **Prerequisites**: List required tools and installation commands
+4. **Working examples**: All code must be tested and functional
+5. **Agent prompt**: Include a text block that agents can use to understand the skill
+6. **See also**: Link to related skills
 
-Here are exciting areas where help is always wanted:
+## Testing Your Skill
 
-### 🎨 1. UI & User Experience
-- [ ] Mobile navigation and gesture refinements (swipe-to-rate, quick shelf access).
-- [ ] Custom themes (OLED black, retro synthwave, high contrast).
-- [ ] Keyboard navigation shortcuts for power users.
-- [ ] Rich media presentation (trailers, backdrop carousels, cast & crew views).
+Before submitting:
 
-### 🌐 2. Metadata & Database Sources
-- [ ] Enhanced Wikipedia page parser for obscure films and indie music.
-- [ ] TVMaze seasonal fallback heuristics and episode guide enrichments.
-- [ ] MusicBrainz release group discography enhancements.
-- [ ] Open community-driven metadata corrections without proprietary lock-in.
+1. **Test all commands**: Copy-paste each bash command and verify it works
+2. **Test Node.js code**: Run each JavaScript example
+3. **Check for typos**: Verify URLs, parameter names, and syntax
+4. **Verify links**: Ensure any referenced skills exist
+5. **Review privacy**: Confirm no API keys or secrets are exposed
 
-### 🔌 3. Scrobblers & Integrations
-- [ ] Importers: Letterboxd CSV, Trakt JSON, Last.fm history, GoodReads exports.
-- [ ] Streaming sync: Plex webhooks, Jellyfin sync, Spotify web API bridge.
-- [ ] Desktop/mobile scrobbling companion tools or Raycast/Alfred extensions.
+## Pull Request Guidelines
 
-### ⚡ 4. Protocol & Nostr Engineering
-- [ ] NIP-46 remote signing (Bunker) support for frictionless key management.
-- [ ] Dynamic relay discovery and latency-based relay pooling.
-- [ ] Decentralized recommendation graph tuning (Kind 35401 community suggestions).
-- [ ] Offline-first sync resilience and local IndexedDB optimizations.
+### PR Title Format
 
-### 🌍 5. Internationalization & Docs
-- [ ] Multi-language translation support (i18n).
-- [ ] Tutorial guides, developer documentation, and walkthrough videos.
+```
+Add skill-name: Brief description
+```
 
----
+Examples:
+- `Add check-ssl-certificate: Verify SSL cert expiration`
+- `Add convert-csv-to-json: Transform CSV files using native tools`
 
-## 🤖 AI Builders & Vibe Coders Welcome
+### PR Description
 
-We actively encourage using AI coding agents (Claude, Cursor, Antigravity, ChatGPT, Copilot). 
+Include:
+- What the skill does
+- Why it's useful (cost savings, privacy benefits, etc.)
+- Testing performed
+- Any dependencies or prerequisites
 
-To ensure high-quality code when using AI:
-1. **Feed [AGENTS.md](./AGENTS.md) to your model:** It contains our architecture philosophy, NIP-33 mutable state rules, canonical content ID hashing specifications, and protocol constraints.
-2. **Respect the Content ID Scheme:** All media IDs are deterministic SHA-256 hashes generated from byte-exact normalized strings (`norm(type)|norm(title)|norm(year)`). Never tag proprietary database IDs (TMDB, IMDb) in Nostr events.
-3. **Run the Test Suite:** Before submitting a PR, make sure all tests pass:
-   ```bash
-   npm test # or npm run test:podman
-   ```
-4. **Add Tests for New Logic:** If you add an event builder, parser, or store mutation, include corresponding unit tests in `src/**/__tests__/`.
+### Review Process
 
----
+- All skills are reviewed for accuracy and adherence to guidelines
+- Test failures or broken examples will block merging
+- Skills may be edited for consistency before merging
+- Contributors will receive GitHub credit for merged PRs
 
-## 📋 Pull Request Process
+## Updating Existing Skills
 
-1. **Create a feature branch:**
-   ```bash
-   git checkout -b feat/my-cool-feature
-   ```
-2. **Make your changes** following our architectural principles.
-3. **Verify tests and build:**
-   ```bash
-   npm test
-   npm run build
-   ```
-4. **Commit with descriptive conventional messages:**
-   ```bash
-   git commit -m "feat(importer): add Letterboxd CSV watchlist import"
-   ```
-5. **Push and open a PR** against the `main` branch of `besoeasy/Trackstr`.
-6. Explain what your PR achieves, reference any related issues, and include screenshots or GIFs for UI updates!
+### When to Update
 
----
+- Fix broken links or non-working code
+- Add new API endpoints or tools
+- Improve error handling
+- Update rate limit information
+- Add new variations or use cases
 
-## 📜 Architectural Cheatsheet
+### Update Process
 
-If you are touching Nostr events, keep these rules in mind (see [AGENTS.md](./AGENTS.md) for full details):
-- **Mutable State (NIP-33):**
-  - Kind `35400`: Ratings (1–10 scale) and written reviews (keyed by `d` = `<contentid>` or `<contentid>:s<season>e<episode>`).
-  - Kind `35401`: Similar suggestions community graph (keyed by `d` = `<source_contentid>`).
-  - Kind `35402`: Watch / listening status and progress (`plan-to-watch`, `watching`, `completed`, `on-hold`, `dropped`, `plan-to-listen`, `listening`).
-- **Deletions (NIP-09):** Kind `5` referencing coordinate `a` tags (`<kind>:<pubkey>:<d-tag>`).
-- **App Attribution:** Every event carries `["trackstr", "web"]`.
+1. Follow the same branch/PR process as new skills
+2. Explain what changed and why in the PR description
+3. Test all modified examples
 
----
+## Questions or Issues?
 
-## 💬 Community & Questions
+- **General questions**: Open a Discussion
+- **Bug reports**: Open an Issue with:
+  - Skill filename
+  - Expected behavior
+  - Actual behavior
+  - Steps to reproduce
+- **Feature requests**: Open an Issue describing the automation need
 
-- **GitHub Discussions & Issues:** [github.com/besoeasy/Trackstr/issues](https://github.com/besoeasy/Trackstr/issues)
-- **Live Demo App:** [trackstr.besoeasy.com](https://trackstr.besoeasy.com/)
-- **Repository:** [github.com/besoeasy/Trackstr](https://github.com/besoeasy/Trackstr)
+## Recognition
 
-Thank you for helping build an open, self-sovereign media ecosystem! 🚀
+Contributors will be recognized through:
+- GitHub commit history
+- Contributors section in README
+- Public acknowledgment in release notes
+
+Thank you for making AI agents smarter, faster, and cheaper to run!

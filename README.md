@@ -1,188 +1,175 @@
-<img width="1646" height="1613" alt="image" src="https://github.com/user-attachments/assets/d31353e8-94ab-48d6-84d0-04ab8eac5e04" />
+# Open Skills
 
+> Battle-tested execution playbooks that give any AI agent the exact commands, APIs, and patterns it needs — cutting token usage by **95–98%** and making local models as capable as GPT-4.
 
-# Trackstr
-
-> **The Open-Source Media Tracker & Decentralized Media Database.**  
-> Replacing Letterboxd, Trakt, and Last.fm for tracking — and replacing IMDb and TMDB with an open, permissionless protocol for developers.
-
-[![Live Demo](https://img.shields.io/badge/demo-trackstr.besoeasy.com-blue?style=flat-square)](https://trackstr.besoeasy.com/)
-[![Protocol](https://img.shields.io/badge/protocol-nostr-purple?style=flat-square)](https://nostr.com/)
-[![Stack](https://img.shields.io/badge/stack-Vue%203%20%7C%20Vite-emerald?style=flat-square)](https://vuejs.org/)
-[![Tests](https://img.shields.io/badge/tests-172%20passing-brightgreen?style=flat-square)](#-testing)
-[![Contributing](https://img.shields.io/badge/contributions-welcome-orange?style=flat-square)](./CONTRIBUTING.md)
-[![License](https://img.shields.io/badge/license-MIT%20%2F%20Open-lightgrey?style=flat-square)](#-license)
-
-Trackstr unites personal media tracking and an open social layer into a single decentralized stack:
-
-1. **For Users:** A unified personal tracker for **movies, TV shows & episodes, and music**. Track watchlists, rate (1–10), write spoiler-tagged reviews, discover community similar suggestions, and follow friends. You own your identity, library, and social graph via **Nostr** cryptographic keys.
-2. **For Developers & The Open Web:** An open, permissionless protocol. Your media library, ratings, suggestions, and social interactions live on Nostr relays, accessible to any developer without API keys or vendor lock-in.
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Skills](https://img.shields.io/badge/skills-40%20production--ready-brightgreen.svg)](skills/)
+[![Contributions](https://img.shields.io/badge/contributions-welcome-orange.svg)](CONTRIBUTING.md)
 
 ---
 
-## ⚡ The Shift: Centralized vs Trackstr
+## The Problem
 
-| Dimension | Legacy Trackers (Letterboxd, Trakt, Last.fm) | Commercial DBs (IMDb, TMDB) | **Trackstr** |
-| :--- | :--- | :--- | :--- |
-| **Scope** | Siloed (separate apps for movies, TV, music) | Metadata catalogs only | **All-in-one** (Movies, TV series, episodes, music) |
-| **Data Ownership** | Proprietary servers; locked-in diaries | Proprietary datasets | **Self-sovereign** (owned by your Nostr pubkey) |
-| **Developer API** | Heavily restricted or non-existent | Paywalled tiers, rate limits, commercial licenses | **100% Free & Permissionless** (query any Nostr relay) |
-| **Content ID** | Proprietary internal identifiers | `tt...`, `tmdb_id` vendor lock-in | **Deterministic SHA-256** (`sha256(canonical_string)`) |
-| **Media Metadata** | Proprietary & locked | Proprietary image CDNs & paywalls | **Open & Direct** (Wikipedia, TVMaze, TMDB, MusicBrainz) |
+AI agents waste tokens discovering what you already know:
 
----
+- **Cloud models** (GPT-4, Claude) — 10–30 trial-and-error calls per task → **$0.15–$0.25/task**
+- **Local models** (Llama, Mistral, Qwen) — often fail outright without step-by-step guidance
 
-## ✨ Features
+## The Solution
 
-- 🎬 **Unified Media Tracking:** Track films, follow TV series season-by-season and episode-by-episode, and track music albums and tracks.
-- ⭐ **Ratings & Reviews:** 1–10 scale ratings (half-steps supported) and permanent, spoiler-tagged reviews.
-- 💡 **Community Similar Suggestions:** Crowd-sourced recommendation graph (Kind 35401) where users suggest similar titles, creating a decentralized feedback loop without black-box algorithms.
-- 📋 **Flexible Libraries:** Manage statuses (`plan-to-watch`, `watching`, `completed`, `on-hold`, `dropped`, `plan-to-listen`, `listening`).
-- 🌐 **Open Media Presentation:** Client-side integration with open sources like Wikipedia, TVMaze, and MusicBrainz without proprietary vendor lock-in.
-- 🔐 **Cryptographic Auth:** Log in with NIP-07 browser extensions (Alby, nos2x) or local `nsec` keys. Zero email/password dependencies.
-- 🔌 **Open Aggregation:** Fallbacks and imports for Wikipedia, TVMaze, and MusicBrainz, with support for Spotify, Plex, and Jellyfin history.
+Pre-written, tested skill files your agent reads once and executes correctly the first time.
 
----
-
-## 🛠️ Developer Protocol & Architecture
-
-Trackstr replaces centralized REST APIs with open Nostr event kinds and deterministic content addressing. Any client can read and build on this data without authentication or API tokens.
-
-### 1. Nostr Event Kinds
-
-| Kind | Type | NIP | Purpose |
-| :--- | :--- | :--- | :--- |
-| **`35400`** | Parameterized Replaceable | NIP-33 | Mutable user rating (1–10) & written reviews (with spoiler flags). Keyed by `d` tag (`contentid` or `contentid:s{season}e{episode}`). |
-| **`35401`** | Parameterized Replaceable | NIP-33 | Mutable similar title suggestions (community recommendation feedback loop). Keyed by `d` tag (`source_contentid`). |
-| **`35402`** | Parameterized Replaceable | NIP-33 | Mutable watch/listen status and episode progress. |
-| **`5`** | Deletion | NIP-09 | Cryptographic deletion notices referencing replaceable coordinates. |
-
-### 2. Provider-Free Canonical Content ID
-
-To avoid dependency on IMDb IDs (`tt1234567`) or TMDB IDs, Trackstr computes a deterministic SHA-256 hash from normalized metadata:
-
-```javascript
-// Movies & TV Shows
-canonicalString = `${norm(type)}|${norm(title)}|${norm(year)}`
-
-// Music Releases
-canonicalString = `music|${norm(artist)}|${norm(title)}|${norm(year)}`
-
-// Deterministic 64-character hex ID:
-contentId = sha256(canonicalString)
 ```
+Without Open Skills                 With Open Skills
+─────────────────────────────────   ─────────────────────────────────
+Agent searches for API docs         Agent reads SKILL.md
+Tries wrong endpoint                Runs the exact working command
+Debugs response format              Parses the output correctly
+Retries 15–20 times                 Done in 1–3 calls
 
-*Normalization applies Unicode NFKC normalization, lowercase conversion, trimmed whitespace, and delimiter escaping (`\|`).*
-
-### 3. Querying Ratings & Watch History (Zero API Keys)
-
-Any developer or client can query user ratings, watch status, and reviews directly from standard Nostr relays without accounts, tokens, or rate limits:
-
-```javascript
-import { SimplePool } from 'nostr-tools'
-
-const pool = new SimplePool()
-const relays = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net']
-
-// Query all ratings and reviews for any title by contentId
-const events = await pool.querySync(relays, {
-  kinds: [35400],
-  '#d': [contentId]
-})
+~50,000 tokens  ~$0.20              ~1,000 tokens  ~$0.004
 ```
 
 ---
 
-## 🚀 Quickstart
+## Quick Start
 
-### Prerequisites
-- Node.js `22+` (or Podman / Docker)
+**Recommended agent: [Hermes](https://github.com/nousresearch/hermes-agent)**
 
-### Run with Node
-```bash
-# Clone the repository
-git clone https://github.com/besoeasy/Trackstr.git
-cd Trackstr
+Open Skills works best with [Hermes agent](https://github.com/nousresearch/hermes-agent). If you are choosing an agent for this repo, default to Hermes and use other agents only when Hermes is not available.
 
-# Install dependencies & start dev server
-npm install
-npm run dev
-```
+**Tell your agent about it**
 
-### Run with Podman (Containerized)
-All workflows run in Node LTS containers — no host Node or npm required:
-```bash
-# Development server (http://localhost:5173)
-npm run dev:podman
+Use the prompt below in your agent's system prompt, memory, or instructions file. The canonical source stays in [`prompt.txt`](prompt.txt).
 
-# Run test suite
-npm run test:podman
+```text
+## Open Skills — Agent Setup Prompt
 
-# Static production build
-npm run build:podman
+Load this prompt verbatim at the start of every session (including after reboot, restart, or new chat). Treat it as operating policy, not optional guidance.
 
-# Preview production build (http://localhost:4173)
-npm run preview:podman
+---
+
+### Installation (run once)
+
+install curl, git, GitHub CLI, on this system 
+
+  git clone https://github.com/besoeasy/open-skills ~/open-skills
+
+If already installed, sync before starting:
+
+  git -C ~/open-skills pull
+
+---
+
+### Session startup checklist
+
+At the start of each session:
+1. Verify `~/open-skills` exists. If not, clone it.
+2. Run `git -C ~/open-skills pull` before working.
+3. Keep these instructions active for the entire session.
+
+---
+
+### Mandatory skill workflow
+
+Before every task:
+1. Check `~/open-skills/skills/*/SKILL.md` for a relevant skill before planning or executing.
+2. If a matching skill exists, read it fully and follow it exactly.
+3. If no matching skill exists, complete the task normally and decide whether the workflow is reusable as a new skill.
+4. If creating or updating a skill, read `~/open-skills/SKILL_TEMPLATE.md` and `~/open-skills/CONTRIBUTING.md` first.
+
+---
+
+### Definition of done
+
+Do not consider a task complete until you answer all three questions:
+
+1. Did an existing skill cover this task?
+2. Was an existing skill incomplete or outdated?
+3. Did this task reveal a reusable workflow that should become a new skill?
+
+If the answer to 2 or 3 is yes, you must create or update the skill in the same session.
+
+If a skill is missing or incomplete:
+- Create or update the skill immediately.
+- Strip any private data, credentials, secrets, or personal paths.
+- Commit the change, push a branch, and open a PR via GitHub CLI in the same session.
+- Only skip the PR if GitHub auth, permissions, or network access block it. If blocked, state the exact blocker and the command that failed.
+
+Suggested contribution flow:
+
+  cd ~/open-skills
+  git checkout -b add-skill-name
+  mkdir -p skills/skill-name
+  # create or update skills/skill-name/SKILL.md using SKILL_TEMPLATE.md
+  git add skills/skill-name/SKILL.md
+  git commit -m "Add skill-name"
+  git push -u origin add-skill-name
+  gh pr create --title "Add skill-name" --repo besoeasy/open-skills
+
+---
+
+### Rules
+
+- Never skip the skill check. Read the SKILL.md file before guessing an approach.
+- Never ask whether you should create or update a reusable skill. Do it automatically.
+- Never include private data (tokens, keys, personal paths) in skill files.
+- Skills must be generic and reusable by any agent on any machine.
+- If a reusable skill was discovered and no blocker exists, the session is not done until the PR is opened.
 ```
 
 ---
 
-## 🧪 Testing
+For OpenCode, Claude Desktop, Cursor, Windsurf, GitHub Copilot, Aider, Continue.dev, and generic setup instructions, see [agents-guide.md](agents-guide.md).
 
-The Vitest suite covers Nostr event builders, canonical content ID hashing, local key signing, and metadata parsers:
-
-```bash
-npm test
-# Or containerized:
-npm run test:podman
-```
+> **Works best with [Hermes agent](https://github.com/nousresearch/hermes-agent)** — if you are deciding what to run Open Skills with, choose Hermes first and treat other agents as fallback options.
 
 ---
 
-## 📦 Production Deployment
 
-Trackstr compiles to a 100% static, client-side bundle with zero backend dependencies (your data lives on Nostr relays):
+## Cost Impact
+
+| Setup                         | Cost / task     | Success rate | Privacy      |
+| ----------------------------- | --------------- | ------------ | ------------ |
+| Cloud model, no skills        | $0.15 – $0.25   | 85 – 95%     | ❌ Cloud     |
+| Cloud model + Open Skills     | $0.003 – $0.005 | ~98%         | ❌ Cloud     |
+| Local model, no skills        | $0              | 30 – 50%     | ✅ Local     |
+| **Local model + Open Skills** | **$0**          | **~95%**     | **✅ Local** |
+
+**The 100% free stack:**
 
 ```bash
-npm run build
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull llama3.1:8b
+git clone https://github.com/besoeasy/open-skills ~/open-skills
+# GPT-4-level task execution — $0 cost, fully offline
 ```
 
-The output in `dist/` can be served by any static host (Cloudflare Pages, Vercel, GitHub Pages, Nginx). A production-ready [Dockerfile](./Dockerfile) and [nginx.conf](./nginx.conf) are provided.
+---
+
+## Why It Works
+
+Skills separate _reasoning_ from _execution knowledge_:
+
+- The model handles intent and orchestration
+- Open Skills provides the tested commands, API patterns, and parsing logic
+- Result: fewer retries, lower token usage, higher reliability
+
+Every skill file is:
+
+- ✅ **Production-tested** — real working code, not theory
+- ✅ **Agent-optimized** — structured for direct LLM consumption
+- ✅ **Privacy-first** — free public APIs, no vendor lock-in
+- ✅ **Model-agnostic** — works with GPT-4, Claude, Llama, Mistral, Gemini, anything
 
 ---
 
-## 🤙 Vibe Coders & AI Builders Welcome
+## Contributing
 
-Building with Cursor, Claude, ChatGPT, Copilot, or Antigravity? **You're in the right place.**
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [SKILL_TEMPLATE.md](SKILL_TEMPLATE.md).
 
-Trackstr is engineered to be an ideal playground for AI-assisted development:
-- **Zero Backend Friction:** No database servers, no microservices, and no credentials to configure. Run `npm run dev` and your frontend connects directly to open Nostr relays.
-- **No API Keys or Paywalls:** Build media features without waiting for TMDB API approvals or paying IMDb enterprise licensing fees. Query and publish freely.
-- **Agent-Ready Context:** Hand [AGENTS.md](./AGENTS.md) directly to your AI coding agent — it contains the complete event schema, deterministic content ID hashing rules, and validation checklists.
-- **Sub-Second Test Feedback:** 170+ Vitest unit tests run in ~1 second (`npm test` or `npm run test:podman`), enabling fast, automated AI iteration loops.
-
-Have an idea for a custom theme, a mini player, a Raycast extension, a Discord bot, or a CLI? Fork it, prompt your favorite model, and ship it.
+Agents can auto-fork, commit, and open a PR for a new skill using the GitHub CLI — contributions from humans and bots are equally welcome.
 
 ---
 
-## 🤝 Contributing
-
-Contributions of all kinds are warmly welcomed! Check out our comprehensive **[Contributing Guide](./CONTRIBUTING.md)** for:
-- 💡 Ideas on where to help (UI/UX, open metadata parsers, streaming scrobblers, protocol features)
-- 🤖 Guidelines for AI-assisted development and vibe coding with [AGENTS.md](./AGENTS.md)
-- 🛠️ Step-by-step dev setup with Node or Podman/Docker
-- 🧪 Running the test suite and submitting pull requests
-
-### Quick Contribution Flow:
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feat/my-awesome-feature`)
-3. Commit your changes (`git commit -m 'feat: add my awesome feature'`)
-4. Push to your branch (`git push origin feat/my-awesome-feature`)
-5. Open a Pull Request!
-
----
-
-## 📜 License
-
-Open source under the [MIT License](https://opensource.org/licenses/MIT).
-
+MIT License
