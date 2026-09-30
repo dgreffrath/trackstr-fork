@@ -1,0 +1,79 @@
+{
+  "name": "trackstr",
+  "version": "0.0.0",
+  "description": "Open-source media tracker — Letterboxd + Trakt + Last.fm alternative for movies, TV shows & music. Decentralized, privacy-first tracking, ratings, reviews & watchlists on Nostr.",
+  "keywords": [
+    "open-source",
+    "media-tracker",
+    "movie-tracker",
+    "tv-tracker",
+    "music-tracker",
+    "watchlist",
+    "letterboxd-alternative",
+    "trakt-alternative",
+    "lastfm-alternative",
+    "scrobbler",
+    "movie-ratings",
+    "movie-reviews",
+    "tv-show-tracker",
+    "music-discovery",
+    "decentralized",
+    "nostr",
+    "privacy",
+    "self-hosted",
+    "social-network",
+    "tmdb",
+    "musicbrainz",
+    "spotify",
+    "plex",
+    "jellyfin",
+    "vuejs",
+    "vite"
+  ],
+  "homepage": "https://trackstr.besoeasy.com/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/besoeasy/Trackstr.git"
+  },
+  "bugs": {
+    "url": "https://github.com/besoeasy/Trackstr/issues"
+  },
+  "author": "besoeasy",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:podman": "podman run --rm -it -v ./:/app:z -w /app --userns=keep-id -p 5173:5173 docker.io/library/node:lts-alpine sh -c \"[ -d node_modules ] || npm ci; npm run dev -- --host 0.0.0.0 --port 5173\"",
+    "build": "vite build",
+    "build:podman": "podman run --rm -v ./:/app:z -w /app --userns=keep-id docker.io/library/node:lts-alpine sh -c \"[ -d node_modules ] || npm ci; npm run build\"",
+    "preview": "vite preview",
+    "preview:podman": "podman run --rm -it -v ./:/app:z -w /app --userns=keep-id -p 4173:4173 docker.io/library/node:lts-alpine sh -c \"npm run preview -- --host 0.0.0.0 --port 4173\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:podman": "podman run --rm -v ./:/app:z -w /app --userns=keep-id docker.io/library/node:lts-alpine sh -c \"[ -d node_modules ] || npm ci; npm test\"",
+    "test:mobile": "node scripts/test-mobile.js",
+    "test:reviews": "node scripts/test-review-suggestions.js",
+    "test:import": "node scripts/test-import-save.js",
+    "test:empty-review": "node scripts/test-empty-review.js"
+  },
+  "dependencies": {
+    "nostr-tools": "^2.25.2",
+    "pinia": "^4.0.2",
+    "qrcode": "^1.5.4",
+    "vue": "^3.5.40",
+    "vue-router": "^5.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.8",
+    "@vue/test-utils": "^2.5.0",
+    "happy-dom": "^20.14.0",
+    "puppeteer": "^25.10.0",
+    "vite": "^8.1.5",
+    "vite-plugin-vue-devtools": "^8.1.5",
+    "vitest": "^5.0.0"
+  },
+  "engines": {
+    "node": "^22.18.0 || >=24.12.0"
+  }
+}

@@ -1,0 +1,309 @@
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import { nostrClient } from '@/services/nostr/client.js'
+import { localSigner } from '@/services/nostr/localSigner.js'
+import { logger } from '@/utils/logger.js'
+import { isValidPubkey } from '@/utils/urls.js'
+import { normalizePubkey } from '@/utils/contentId.js'
+import { nip19 } from 'nostr-tools'
+import router from '@/router/index.js'
+
+function loadStoredIdentity() {
+  try {
+    const rawStored = localStorage.getItem('trackstr_pubkey') || ''
+    const storedPubkey = normalizePubkey(rawStored)
+    if (rawStored && !isValidPubkey(rawStored)) {
+      // Corrupted or tampered storage must never yield a fake session.
+      localStorage.removeItem('trackstr_pubkey')
+      localStorage.removeItem('trackstr_auth_type')
+      localStorage.removeItem('trackstr_nsec')
+      return { pubkey: '', authType: null }
+    }
+    // Self-heal: rewrite mixed-case legacy entries normalized so every
+    // downstream author key comparison hits.
+    if (storedPubkey && storedPubkey !== rawStored) {
+      try {
+        localStorage.setItem('trackstr_pubkey', storedPubkey)
+      } catch {}
+    }
+    const storedType = localStorage.getItem('trackstr_auth_type')
+    const authType = storedType === 'nsec' || storedType === 'extension' ? storedType : storedPubkey ? 'extension' : null
+    return { pubkey: storedPubkey, authType }
+  } catch {
+    return { pubkey: '', authType: null }
+  }
+}
+
+export const useAuthStore = defineStore('auth', () => {
+  const stored = loadStoredIdentity()
+  const pubkey = ref(stored.pubkey)
+  const authType = ref(stored.authType)
+  const showLoginModal = ref(false)
+  const profile = ref(null)
+  const isLoggingIn = ref(false)
+  const loginStatusMessage = ref('')
+  const loginError = ref('')
+  const lastErrorDetails = ref(null)
+  const diagnostics = ref(nostrClient.getDiagnostics())
+
+  const isAuthenticated = computed(() => !!pubkey.value)
+
+  const npub = computed(() => {
+    if (!pubkey.value) return ''
+    try {
+      return nip19.npubEncode(pubkey.value)
+    } catch {
+      return ''
+    }
+  })
+
+  const displayName = computed(() => {
+    if (profile.value?.display_name) return profile.value.display_name
+    if (profile.value?.name) return profile.value.name
+    if (npub.value) return `${npub.value.slice(0, 9)}...${npub.value.slice(-5)}`
+    return 'Anonymous'
+  })
+
+  const avatarUrl = computed(() => {
+    return profile.value?.picture || ''
+  })
+
+  function refreshDiagnostics() {
+    diagnostics.value = nostrClient.getDiagnostics()
+    return diagnostics.value
+  }
+
+  function openLoginModal(returnTo) {
+    showLoginModal.value = true
+    if (typeof window !== 'undefined' && router) {
+      try {
+        const query = returnTo ? { returnTo } : {}
+        router.push({ path: '/connect', query }).catch(() => {})
+      } catch {
+        // Fallback in test/headless environments
+      }
+    }
+  }
+
+  function closeLoginModal() {
+    showLoginModal.value = false
+    loginError.value = ''
+    loginStatusMessage.value = ''
+  }
+
+  /**
+   * Log in using NIP-07 browser extension (Alby, nos2x, etc.)
+   */
+  async function loginWithExtension() {
+    isLoggingIn.value = true
+    loginError.value = ''
+    loginStatusMessage.value = 'Connecting to browser extension...'
+    lastErrorDetails.value = null
+    refreshDiagnostics()
+
+    logger.info('AuthStore', 'User triggered loginWithExtension()')
+
+    try {
+      // A lingering local nsec signer would keep signing (client prefers it),
+      // attributing events to the wrong identity — disconnect it first.
+      if (localSigner.isConnected()) {
+        localSigner.disconnect()
+      }
+      const hex = await nostrClient.getPublicKeyFromExtension()
+      if (!hex) {
+        throw new Error('No public key returned by extension.')
+      }
+      // Extensions may return mixed-case hex — normalize once at the
+      // identity boundary so all author keys match.
+      const normalizedHex = normalizePubkey(hex)
+      if (!isValidPubkey(normalizedHex)) {
+        throw new Error('Extension returned an invalid public key.')
+      }
+
+      pubkey.value = normalizedHex
+      authType.value = 'extension'
+      localStorage.setItem('trackstr_pubkey', normalizedHex)
+      localStorage.setItem('trackstr_auth_type', 'extension')
+      logger.info('AuthStore', `Stored authenticated pubkey: ${normalizedHex} (extension)`)
+
+      // Close modal on successful connection
+      closeLoginModal()
+
+      // Fetch Kind 0 profile in background
+      fetchUserProfile(normalizedHex)
+      return normalizedHex
+    } catch (err) {
+      const msg = err?.message || String(err)
+      logger.error('AuthStore', `Login failed: ${msg}`, { error: err, diagnostics: diagnostics.value })
+      loginError.value = msg
+      lastErrorDetails.value = {
+        message: msg,
+        stack: err?.stack || null,
+        diagnostics: diagnostics.value,
+        timestamp: new Date().toISOString(),
+      }
+      throw err
+    } finally {
+      isLoggingIn.value = false
+      loginStatusMessage.value = ''
+    }
+  }
+
+  /**
+   * Log in using an existing nsec private key (NIP-19).
+   * The key is stored locally so events can be signed in the browser.
+   * @param {string} nsecInput nsec1... / nostr:nsec1... / hex
+   */
+  async function loginWithNsec(nsecInput) {
+    isLoggingIn.value = true
+    loginError.value = ''
+    loginStatusMessage.value = 'Validating nsec key...'
+    lastErrorDetails.value = null
+
+    logger.info('AuthStore', 'User triggered loginWithNsec()')
+
+    try {
+      // A lingering extension signer would keep signing (client prefers it),
+      // attributing events to the wrong identity — disconnect it first.
+      const result = await localSigner.loginWithNsec(nsecInput)
+
+      const normalized = normalizePubkey(result.pubkey)
+      pubkey.value = normalized
+      authType.value = 'nsec'
+
+      logger.info('AuthStore', `nsec login successful! Pubkey: ${normalized}`)
+
+      // Close modal on successful connection
+      closeLoginModal()
+
+      // Fetch Kind 0 profile in background
+      fetchUserProfile(normalized)
+      return normalized
+    } catch (err) {
+      const msg = err?.message || String(err)
+      logger.error('AuthStore', `nsec login failed: ${msg}`, err)
+      loginError.value = msg
+      lastErrorDetails.value = {
+        message: msg,
+        stack: err?.stack || null,
+        diagnostics: diagnostics.value,
+        timestamp: new Date().toISOString(),
+      }
+      throw err
+    } finally {
+      isLoggingIn.value = false
+      loginStatusMessage.value = ''
+    }
+  }
+
+  /**
+   * Creates a fresh disposable account (new random nsec) and logs in.
+   * @returns {Promise<{ pubkey: string, nsec: string }>}
+   */
+  async function createDisposableAccount() {
+    isLoggingIn.value = true
+    loginError.value = ''
+    loginStatusMessage.value = 'Generating a fresh Nostr identity...'
+    lastErrorDetails.value = null
+
+    logger.info('AuthStore', 'User triggered createDisposableAccount()')
+
+    try {
+      const result = await localSigner.createDisposableAccount()
+
+      const normalized = normalizePubkey(result.pubkey)
+      pubkey.value = normalized
+      authType.value = 'nsec'
+
+      logger.info('AuthStore', `Disposable account created! Pubkey: ${normalized}`)
+
+      // Close modal on successful connection
+      closeLoginModal()
+
+      // Fetch Kind 0 profile in background
+      fetchUserProfile(normalized)
+      return { pubkey: normalized, nsec: result.nsec }
+    } catch (err) {
+      const msg = err?.message || String(err)
+      logger.error('AuthStore', `Disposable account creation failed: ${msg}`, err)
+      loginError.value = msg
+      lastErrorDetails.value = {
+        message: msg,
+        stack: err?.stack || null,
+        diagnostics: diagnostics.value,
+        timestamp: new Date().toISOString(),
+      }
+      throw err
+    } finally {
+      isLoggingIn.value = false
+      loginStatusMessage.value = ''
+    }
+  }
+
+  /**
+   * Fetch profile metadata (kind 0)
+   */
+  async function fetchUserProfile(hex) {
+    try {
+      const p = await nostrClient.fetchProfile(hex || pubkey.value)
+      if (p) {
+        profile.value = p
+      }
+    } catch (e) {
+      logger.warn('AuthStore', 'Failed to fetch profile metadata:', e)
+    }
+  }
+
+  /**
+   * Log out
+   */
+  async function logout() {
+    if (authType.value === 'nsec') {
+      localSigner.disconnect()
+    }
+    pubkey.value = ''
+    authType.value = null
+    profile.value = null
+    localStorage.removeItem('trackstr_pubkey')
+    localStorage.removeItem('trackstr_auth_type')
+    // Drop live sockets and pending callbacks so nothing keeps ingesting
+    // into the shared stores across accounts.
+    try {
+      nostrClient.resetConnections()
+    } catch {}
+    logger.info('AuthStore', 'User logged out')
+  }
+
+  // Restore session on initial load
+  if (authType.value === 'nsec') {
+    localSigner.restoreSession()
+  }
+
+  if (pubkey.value) {
+    fetchUserProfile(pubkey.value)
+  }
+
+  return {
+    pubkey,
+    npub,
+    authType,
+    showLoginModal,
+    profile,
+    displayName,
+    avatarUrl,
+    isAuthenticated,
+    isLoggingIn,
+    loginStatusMessage,
+    loginError,
+    lastErrorDetails,
+    diagnostics,
+    openLoginModal,
+    closeLoginModal,
+    loginWithExtension,
+    loginWithNsec,
+    createDisposableAccount,
+    refreshDiagnostics,
+    fetchUserProfile,
+    logout,
+  }
+})
